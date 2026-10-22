@@ -679,14 +679,12 @@ a separate desktop installer.
 
 ### Team contributions
 
-Add the actual contributors and their responsibilities before final
-submission. Do not leave placeholder names in a submitted copy.
-
   Team member            Contribution
   ---------------------- ---------------------------
-  Add team member name   Add contribution / module
-  Add team member name   Add contribution / module
-  Add team member name   Add contribution / module
+  Jalj Singhal           Add contribution / module
+  Tanishka Aggrawal      Add contribution / module
+  Devansh Shrivastava    Add contribution / module
+  Anuvrat Deswal         Add contribution / module
 
 ### Acknowledgements
 
@@ -703,9 +701,7 @@ project.
 ## 15. License
 
 No project-specific open-source license has been confirmed in this
-README. If the team plans to publish or redistribute Echo Vision, add a
-`LICENSE` file that states the intended terms and verify that
-third-party assets and dependencies can be used under those terms.
+README. 
 
 ------------------------------------------------------------------------
 
