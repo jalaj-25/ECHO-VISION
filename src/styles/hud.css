@@ -1,0 +1,77 @@
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #e8ebe6;
+  z-index: 10;
+}
+
+#pulse-counter {
+  position: absolute;
+  left: 32px;
+  bottom: 32px;
+  font-family: monospace;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+#game-message {
+  position: absolute;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  font-weight: 300;
+  opacity: 0.5;
+}
+
+#screen-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 8, 9, 0.94);
+  z-index: 20;
+  pointer-events: auto;
+}
+
+#screen-overlay:empty {
+  display: none;
+}
+
+#start-button {
+  position: absolute;
+  top: 40%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  font-size: 16px;
+  font-family: Inter, Arial, sans-serif;
+  color: #070809;
+  background: #e8ebe6;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: background 0.2s;
+  pointer-events: auto;
+}
+
+#start-button:hover {
+  background: #e3e7e1;
+}
+
+#start-button:focus-visible {
+  outline: 2px solid #070809;
+  outline-offset: 4px;
+}

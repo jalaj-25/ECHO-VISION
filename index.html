@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <meta
+    name="theme-color"
+    content="#070809"
+  />
+  <title>Echo Vision | Navigate Through Sound</title>
+  <link rel="stylesheet" href="/src/styles/global.css" />
+  <link rel="stylesheet" href="/src/styles/hud.css" />
+</head>
+<body>
+  <div id="app"> 
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud" aria-live="polite">
+      <div id="pulse-counter"></div>
+      <div id="game-message"></div>
+      <div id="crosshair">+</div>
+    </div>
+
+    <div id="screen-overlay">
+      <button id="start-button">Start Game</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
