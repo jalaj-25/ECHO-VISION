@@ -1,52 +1,93 @@
+
 export class InputManager {
   constructor() {
     this.keys = {};
     this.mouse = { x: 0, y: 0, moved: false };
     this.pointerLocked = false;
 
-    document.addEventListener("keydown", (e) => {
+    this.canvas = document.querySelector("#game-canvas");
+
+    this.handleKeyDown = (e) => {
       this.keys[e.code] = true;
-      if (e.code === "KeyM") {
-        remove;
-      }
-    });
+    };
 
-    document.addEventListener("keyup", (e) => {
+    this.handleKeyUp = (e) => {
       this.keys[e.code] = false;
-    });
+    };
 
-    document.addEventListener("mousemove", (e) => {
+    this.handleMouseMove = (e) => {
+      if (!this.pointerLocked) return;
+
       this.mouse.x = e.movementX || 0;
       this.mouse.y = e.movementY || 0;
       this.mouse.moved = true;
-    });
+    };
 
-    const canvas = document.querySelector("#game-canvas");
-    if (canvas) {
-      canvas.addEventListener("click", () => {
-        if (!this.pointerLocked) {
-          canvas.requestPointerLock();
+    this.handlePointerLockChange = () => {
+      this.pointerLocked =
+        document.pointerLockElement === this.canvas;
+
+      if (!this.pointerLocked) {
+        this.mouse = { x: 0, y: 0, moved: false };
+      }
+    };
+
+    this.handlePointerLockError = () => {
+      console.warn(
+        "Pointer lock could not be acquired. Click the game canvas to retry."
+      );
+    };
+
+    this.handleCanvasClick = () => {
+      if (!this.canvas || document.pointerLockElement) return;
+
+      // Called directly from the user's click gesture.
+      try {
+        const result = this.canvas.requestPointerLock();
+
+        if (result && typeof result.catch === "function") {
+          result.catch((error) => {
+            console.warn("Pointer lock request failed:", error);
+          });
         }
-      });
+      } catch (error) {
+        console.warn("Pointer lock request failed:", error);
+      }
+    };
 
-      document.addEventListener("pointerlockchange", () => {
-        this.pointerLocked = document.pointerLockElement === canvas;
-      });
+    document.addEventListener("keydown", this.handleKeyDown);
+    document.addEventListener("keyup", this.handleKeyUp);
+    document.addEventListener("mousemove", this.handleMouseMove);
+    document.addEventListener(
+      "pointerlockchange",
+      this.handlePointerLockChange
+    );
+    document.addEventListener(
+      "pointerlockerror",
+      this.handlePointerLockError
+    );
 
-      document.addEventListener("pointerlockerror", (e) => {
-        console.error("Pointer lock error:", e.error);
-      });
+    if (this.canvas) {
+      this.canvas.addEventListener("click", this.handleCanvasClick);
+    } else {
+      console.error('InputManager: "#game-canvas" was not found.');
     }
   }
 
   isKeyDown(code) {
-    const normalizedCode = code === "Space" ? "Spacebar" : code;
-    return !!this.keys[normalizedCode] || !!this.keys[code];
+    return !!this.keys[code];
   }
 
   getMouseMovement() {
-    const movement = { x: this.mouse.x, y: this.mouse.y };
+    const movement = {
+      x: this.mouse.x,
+      y: this.mouse.y,
+    };
+
+    this.mouse.x = 0;
+    this.mouse.y = 0;
     this.mouse.moved = false;
+
     return movement;
   }
 
@@ -55,7 +96,8 @@ export class InputManager {
   }
 
   setEnabled(enabled) {
-    // Enable/disable gameplay input
+    this.enabled = enabled;
+
     if (!enabled) {
       this.keys = {};
     }
@@ -64,10 +106,27 @@ export class InputManager {
   reset() {
     this.keys = {};
     this.mouse = { x: 0, y: 0, moved: false };
-    this.pointerLocked = false;
   }
 
   dispose() {
     this.reset();
+
+    document.removeEventListener("keydown", this.handleKeyDown);
+    document.removeEventListener("keyup", this.handleKeyUp);
+    document.removeEventListener("mousemove", this.handleMouseMove);
+    document.removeEventListener(
+      "pointerlockchange",
+      this.handlePointerLockChange
+    );
+    document.removeEventListener(
+      "pointerlockerror",
+      this.handlePointerLockError
+    );
+
+    if (this.canvas) {
+      this.canvas.removeEventListener("click", this.handleCanvasClick);
+    }
+
+    this.pointerLocked = false;
   }
 }

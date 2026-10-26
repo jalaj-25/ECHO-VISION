@@ -1,3 +1,5 @@
+import { GAME_CONFIG } from "../config/gameConfig.js";
+
 export class HUD {
   constructor() {
     this.charges = 12;
@@ -6,10 +8,24 @@ export class HUD {
     this.visible = false;
     this.lowCharge = false;
     this.isRestartRequested = false;
+    this.currentLevelIndex = 0;
 
     this.counterEl = document.querySelector("#pulse-counter");
     this.messageEl = document.querySelector("#game-message");
     this.overlayEl = document.querySelector("#screen-overlay");
+
+    this.updateVisuals();
+  }
+
+  setLevel(index) {
+    this.currentLevelIndex = index;
+
+    const level = GAME_CONFIG.levels[index];
+
+    if (!level) {
+      console.error("Invalid level index:", index);
+      return;
+    }
 
     this.updateVisuals();
   }

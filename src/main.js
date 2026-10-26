@@ -1,7 +1,7 @@
 import { Game } from "./core/Game.js";
 import "./styles/global.css";
 import "./styles/hud.css";
-import { GameState } from "./core/GameState.js";
+import { GameStatus } from "./core/GameState.js";
 
 const canvas = document.querySelector("#game-canvas");
 
@@ -19,11 +19,11 @@ window.addEventListener("beforeunload", () => {
 });
 
 window.addEventListener("keydown", (e) => {
-  if (e.code === "Escape") {
-    if (game.state.status === GameState.PLAYING) {
-      game.pauseGame();
-    } else if (game.state.status === GameState.PAUSED) {
-      game.resumeGame();
-    }
+  if (e.code !== "Escape") return;
+
+  if (game.state.status === GameStatus.PLAYING) {
+    game.pauseGame();
+  } else if (game.state.status === GameStatus.PAUSED) {
+    game.resumeGame();
   }
 });

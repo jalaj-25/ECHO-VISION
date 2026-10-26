@@ -3,7 +3,7 @@ import * as THREE from "three";
 import vertexShader from "../sonar/shaders/sonar.vert.glsl?raw";
 import fragmentShader from "../sonar/shaders/sonar.frag.glsl?raw";
 
-const MAX_PULSES = 3;
+const MAX_PULSES = 5;
 
 export function createSonarMaterial() {
   const material = new THREE.ShaderMaterial({

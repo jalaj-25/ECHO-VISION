@@ -2,14 +2,19 @@
 import * as THREE from "three";
 import { GAME_CONFIG } from "../config/gameConfig.js";
 
-export function buildMaze(mazeData, scene, wallMaterial) {
-  const {
-    rows,
-    columns,
-    cellSize,
-    wallHeight,
-    wallThickness,
-  } = GAME_CONFIG.maze;
+export function buildMaze(
+  mazeData,
+  scene,
+  wallMaterial,
+  mazeConfig = GAME_CONFIG.maze
+) {
+  const rows = mazeData.rows;
+const columns = mazeData.columns;
+
+const cellSize = mazeConfig.cellSize ?? GAME_CONFIG.maze.cellSize;
+const wallHeight = mazeConfig.wallHeight ?? GAME_CONFIG.maze.wallHeight;
+const wallThickness =
+  mazeConfig.wallThickness ?? GAME_CONFIG.maze.wallThickness;
 
   const wallRectangles = [];
   const meshes = [];
@@ -58,35 +63,36 @@ export function buildMaze(mazeData, scene, wallMaterial) {
   meshes.push(floor);
 
   // Add a wall mesh and its matching X/Z collision rectangle.
-  function addWall(x, z, width, depth, rotationY = 0) {
-    const geometry =
-      width === cellSize && depth === wallThickness
-        ? wallGeometry
-        : new THREE.BoxGeometry(width, wallHeight, depth);
+  
+function addWall(x, z, width, depth) {
+  const geometry = new THREE.BoxGeometry(
+    width,
+    wallHeight,
+    depth
+  );
 
-    const wall = new THREE.Mesh(geometry, effectiveWallMaterial);
+  const wall = new THREE.Mesh(geometry, effectiveWallMaterial);
 
-    wall.position.set(
-      x + width / 2,
-      wallHeight / 2,
-      z + depth / 2
-    );
+  wall.position.set(
+    x + width / 2,
+    wallHeight / 2,
+    z + depth / 2
+  );
 
-    wall.rotation.y = rotationY;
-    wall.castShadow = true;
-    wall.receiveShadow = true;
-    wall.userData.mazeWall = true;
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  wall.userData.mazeWall = true;
 
-    scene.add(wall);
-    meshes.push(wall);
+  scene.add(wall);
+  meshes.push(wall);
 
-    wallRectangles.push({
-      x,
-      z,
-      width,
-      depth,
-    });
-  }
+  wallRectangles.push({
+    x,
+    z,
+    width,
+    depth,
+  });
+}
 
   // Build walls from the maze cell data.
   for (let row = 0; row < rows; row++) {
@@ -96,17 +102,17 @@ export function buildMaze(mazeData, scene, wallMaterial) {
       const cx = col * cellSize;
       const cz = row * cellSize;
 
-      // North: horizontal wall at the far Z edge of this cell.
+      // North wall: negative Z edge
       if (cell.north) {
         addWall(
           cx,
-          cz + cellSize - halfWall,
+          cz - halfWall,
           cellSize,
           wallThickness
         );
       }
 
-      // East: vertical wall at the far X edge of this cell.
+      // East wall: positive X edge
       if (cell.east) {
         addWall(
           cx + cellSize - halfWall,
@@ -116,17 +122,17 @@ export function buildMaze(mazeData, scene, wallMaterial) {
         );
       }
 
-      // South: horizontal wall at the near Z edge of this cell.
+      // South wall: positive Z edge
       if (cell.south) {
         addWall(
           cx,
-          cz - halfWall,
+          cz + cellSize - halfWall,
           cellSize,
           wallThickness
         );
       }
 
-      // West: vertical wall at the near X edge of this cell.
+      // West wall: negative X edge
       if (cell.west) {
         addWall(
           cx - halfWall,
@@ -137,6 +143,7 @@ export function buildMaze(mazeData, scene, wallMaterial) {
       }
     }
   }
+
 
   // Player spawn: center of the first cell.
   const startWorld = {

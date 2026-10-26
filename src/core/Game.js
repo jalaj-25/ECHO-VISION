@@ -19,6 +19,8 @@ export class Game {
     this.inputManager = null;
     this.mazeGenerator = null;
     this.mazeMeshes = null;
+    this.exitMarker = null;
+    this.sonarGroundPlane = null;
     this.collisionSystem = null;
     this.playerController = null;
     this.pulseSystem = null;
@@ -31,31 +33,61 @@ export class Game {
     this.signalDecayRemaining = null;
   }
 
-  async initialize() {
+async initialize() {
     this.renderer = new Renderer(this.canvas);
     this.inputManager = new InputManager();
     this.pulseSystem = new PulseSystem();
     this.hud = new HUD();
-    this.audioManager = new AudioManager();
+    this.audioManager = new AudioManager;
+
+    this.hud.setLevel(this.state.currentLevelIndex);
 
     this.setupMaze();
     await this.setupPlayer();
     this.setupSonar();
     this.setupUI();
     this.showTitleScreen();
-}
+  }
 
   setupMaze() {
+    const currentLevel = this.state.getCurrentLevel();
     this.mazeGenerator = new MazeGenerator();
     const mazeData = this.mazeGenerator.generate(
-      GAME_CONFIG.maze.rows,
-      GAME_CONFIG.maze.columns,
+      currentLevel.maze.rows,
+      currentLevel.maze.columns,
       GAME_CONFIG.maze.seed
     );
 
-    this.mazeMeshes = buildMaze(mazeData, this.renderer.scene);
+    this.mazeMeshes = buildMaze(
+      mazeData,
+      this.renderer.scene,
+      null,
+      {
+        ...GAME_CONFIG.maze,
+        ...currentLevel.maze
+      }
+    );
+    console.log("Exit world:", this.mazeMeshes.exitWorld);
+
+    this.createExitMarker();
+    const exitCell = mazeData.exit;
+
+console.log("Exit cell:", exitCell);
+console.log(
+  "Exit cell walls:",
+  mazeData.cells[exitCell.row][exitCell.column]
+);
+console.log("Start cell:", mazeData.cells[0][0]);
     this.collisionSystem = new CollisionSystem();
     this.collisionSystem.setWalls(this.mazeMeshes.wallRectangles);
+
+    const cellSize =
+    currentLevel.maze.cellSize ?? GAME_CONFIG.maze.cellSize;
+
+    this.collisionSystem.setBounds(
+      currentLevel.maze.columns * cellSize,
+      currentLevel.maze.rows * cellSize
+    );
   }
 
   async setupPlayer() {
@@ -84,13 +116,24 @@ export class Game {
   }
 
   _createGroundPlane() {
-    const planeGeom = new THREE.PlaneGeometry(
-      GAME_CONFIG.maze.columns * GAME_CONFIG.maze.cellSize,
-      GAME_CONFIG.maze.rows * GAME_CONFIG.maze.cellSize
-    );
+    const currentLevel = this.state.getCurrentLevel();
+
+    const cellSize =
+      currentLevel.maze.cellSize ?? GAME_CONFIG.maze.cellSize;
+
+    const width = currentLevel.maze.columns * cellSize;
+    const depth = currentLevel.maze.rows * cellSize;
+
+    const planeGeom = new THREE.PlaneGeometry(width, depth);
+
     const plane = new THREE.Mesh(planeGeom, this.sonarMaterial);
+
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = 0.001; // Slightly above floor
+    plane.position.set(width / 2, 0.001, depth / 2);
+    plane.userData.isSonarGround = true;
+
+    this.sonarGroundPlane = plane;
+
     return plane;
   }
 
@@ -130,7 +173,17 @@ export class Game {
     }
 
     this.audioManager.resume();
+
+    const currentLevel = this.state.getCurrentLevel();
+
+    this.pulseSystem.config = {
+      ...GAME_CONFIG.sonar,
+      ...currentLevel.sonar
+    };
+
     this.pulseSystem.reset();
+
+    this.hud.setLevel(this.state.currentLevelIndex);
 
     this.signalDecayRemaining = null;
 
@@ -155,14 +208,16 @@ export class Game {
 
   pauseGame() {
     this.paused = true;
+    this.state.setStatus(GameStatus.PAUSED);
     this.inputManager.setEnabled(false);
-    this.hud.setVisible(false);
+    this.hud.setVisible(true);
   }
 
   resumeGame() {
     this.paused = false;
+    this.state.setStatus(GameStatus.PLAYING);
     this.inputManager.setEnabled(true);
-    this.hud.setVisible(true);
+    this.hud.setVisible(false);
   }
 
   async restartGame() {
@@ -180,14 +235,29 @@ export class Game {
     await this.setupPlayer();
     this.setupSonar();
     this.setupUI();
-    this.hud.setCharges(12, 12);
+    this.hud.setCharges(
+      this.state.getCurrentLevel().sonar.initialCharges,
+      this.state.getCurrentLevel().sonar.initialCharges
+    );
+    this.hud.setLevel(0);
     this.showTitleScreen();
   }
 
   showTitleScreen() {
-    this.hud.setMessage("ECHO VISION\n\nFind your way through sound.\nUse WASD to move. Mouse to look.\nSpace to emit sonar pulse.\n\nClick Start to begin.");
+    const currentLevel = this.state.getCurrentLevel();
+    const charges = currentLevel.sonar.initialCharges;
+
+    this.hud.setMessage(
+      `ECHO VISION\n\n` +
+      `Find your way through sound.\n` +
+      `Use WASD to move. Mouse to look.\n` +
+      `Space to emit sonar pulse.\n` +
+      `Level ${currentLevel.number}: ${currentLevel.name}\n\n` +
+      `Click Start to begin.`
+    );
+
     this.hud.setVisible(true);
-    this.hud.setCharges(12, 12);
+    this.hud.setCharges(charges, charges);
     this.hud.isRestartRequested = false;
   }
 
@@ -203,14 +273,37 @@ export class Game {
     }
   }
 
-  checkExit() {
-    if (!this.playerController) return false;
-    const pos = this.playerController.getPosition();
-    const exitPos = this.mazeMeshes.exitWorld;
-    const dx = pos.x - exitPos.x;
-    const dz = pos.z - exitPos.z;
-    return Math.sqrt(dx * dx + dz * dz) < GAME_CONFIG.gameplay.exitRadius;
+  
+checkExit() {
+  if (!this.playerController || !this.mazeMeshes?.exitWorld) {
+    return false;
   }
+
+  const pos = this.playerController.getPosition();
+  const exit = this.mazeMeshes.exitWorld;
+
+  const dx = pos.x - exit.x;
+  const dz = pos.z - exit.z;
+
+  const distance = Math.sqrt(dx * dx + dz * dz);
+  const exitRadius = Math.max(
+    GAME_CONFIG.gameplay.exitRadius ?? 1,
+    1.5
+  );
+
+  // Temporary debugging log.
+  if (distance < 3) {
+    console.log("Near exit:", {
+      player: { x: pos.x, z: pos.z },
+      exit: { x: exit.x, z: exit.z },
+      distance,
+      exitRadius
+    });
+  }
+
+  return distance < exitRadius;
+}
+
 
   update(deltaTime) {
     if (this.state.status === GameStatus.TITLE) {
@@ -276,16 +369,63 @@ if (!this.playerController) return;
     }
   }
 
-  win() {
-    this.state.setStatus(GameStatus.WON);
-    this.hud.setMessage(`YOU FOUND THE SIGNAL\nPulses used: ${12 - this.pulseSystem.charges}`);
-    this.audioManager.playWin();
-    this.inputManager.setEnabled(false);
+  
+win() {
+  // Prevent repeated level completion.
+  if (this.state.status !== GameStatus.PLAYING) return;
+
+  const currentLevel = this.state.getCurrentLevel();
+  const totalLevels = GAME_CONFIG.levels.length;
+  const isLastLevel =
+    this.state.currentLevelIndex >= totalLevels - 1;
+
+  const pulsesUsed =
+    this.pulseSystem.config.initialCharges -
+    this.pulseSystem.charges;
+
+  this.state.setStatus(GameStatus.WON);
+  this.inputManager.setEnabled(false);
+  this.audioManager.playWin();
+
+  if (isLastLevel) {
+    this.hud.setMessage(
+      `CONGRATULATIONS!\n` +
+      `You completed all ${totalLevels} levels!\n` +
+      `Pulses used: ${pulsesUsed}\n\n` +
+      `Click Start to restart from Level 1.`
+    );
+
+    setTimeout(() => {
+      this.state.reset();
+      this.state.setStatus(GameStatus.TITLE);
+      this.showTitleScreen();
+    }, 3000);
+
+    return;
   }
+
+  this.hud.setMessage(
+    `Level ${currentLevel.name} Complete!\n` +
+    `Pulses used: ${pulsesUsed}\n` +
+    `Loading next level...`
+  );
+
+  setTimeout(async () => {
+    try {
+      this.state.nextLevel();
+      await this.loadNextLevel();
+    } catch (error) {
+      console.error("Next level loading failed:", error);
+      this.hud.setMessage("Failed to load the next level.");
+    }
+  }, 1500);
+}
+
 
   lose() {
     this.state.setStatus(GameStatus.LOST);
-    this.hud.setMessage("THE SIGNAL IS GONE\nPulses used: 12");
+    const currentLevel = this.state.getCurrentLevel();
+    this.hud.setMessage(`THE SIGNAL IS GONE\nLevel ${currentLevel.name} failed`);
     this.audioManager.lose();
     this.inputManager.setEnabled(false);
   }
@@ -323,4 +463,130 @@ if (!this.playerController) return;
     this.playerController.dispose();
     this.collisionSystem.dispose();
   }
+
+  clearCurrentMaze() {
+    if (this.playerController) {
+      this.playerController.dispose();
+      this.playerController = null;
+    }
+
+    if (this.mazeMeshes?.meshes) {
+      for (const mesh of this.mazeMeshes.meshes) {
+      this.renderer.scene.remove(mesh);
+      mesh.geometry?.dispose();
+      }
+    }
+
+    if (this.sonarGroundPlane) {
+      this.renderer.scene.remove(this.sonarGroundPlane);
+      this.sonarGroundPlane.geometry?.dispose();
+      this.sonarGroundPlane = null;
+    }
+
+    this.mazeMeshes = null;
+    this.collisionSystem = null;
+
+    if (this.exitMarker) {
+    this.renderer.scene.remove(this.exitMarker);
+
+    this.exitMarker.traverse((object) => {
+      if (object.isMesh) {
+        object.geometry.dispose();
+
+        if (Array.isArray(object.material)) {
+          object.material.forEach((material) => material.dispose());
+        } else {
+          object.material.dispose();
+        }
+      }
+    });
+
+    this.exitMarker = null;
+    }
+  }
+
+  
+async loadNextLevel() {
+  this.clearCurrentMaze();
+
+  this.setupMaze();
+  await this.setupPlayer();
+  this.setupSonar();
+
+  const currentLevel = this.state.getCurrentLevel();
+
+  this.pulseSystem.config = {
+    ...GAME_CONFIG.sonar,
+    ...currentLevel.sonar
+  };
+
+  this.pulseSystem.reset();
+  this.signalDecayRemaining = null;
+
+  this.hud.setLevel(this.state.currentLevelIndex);
+  this.startGame();
+}
+
+createExitMarker() {
+  const exit = this.mazeMeshes?.exitWorld;
+
+  if (
+    !exit ||
+    !Number.isFinite(exit.x) ||
+    !Number.isFinite(exit.z)
+  ) {
+    console.error("Invalid exit position:", exit);
+    return;
+  }
+
+  // Remove the previous marker if one exists.
+  if (this.exitMarker) {
+    this.renderer.scene.remove(this.exitMarker);
+  }
+
+  const group = new THREE.Group();
+  group.position.set(exit.x, 0, exit.z);
+
+  const currentLevel = this.state.getCurrentLevel();
+
+  const wallHeight =
+    currentLevel.maze.wallHeight ??
+    GAME_CONFIG.maze.wallHeight;
+
+  // Green ring on the floor.
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.65, 0.07, 8, 32),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+  );
+
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.08;
+  group.add(ring);
+
+  // Tall green pillar extending above the walls.
+  const pillarHeight = wallHeight + 3;
+
+  const pillar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.12, pillarHeight, 16),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+  );
+
+  pillar.position.y = pillarHeight / 2;
+  group.add(pillar);
+
+  // Large yellow sphere above the walls.
+  const yellowBeacon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.4, 20, 20),
+    new THREE.MeshBasicMaterial({ color: 0xffff00 })
+  );
+
+  yellowBeacon.position.y = pillarHeight + 0.5;
+  group.add(yellowBeacon);
+
+  this.renderer.scene.add(group);
+  this.exitMarker = group;
+
+  console.log("Exit marker created at:", exit);
+}
+
 }
